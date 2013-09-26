@@ -21,6 +21,12 @@ static void* baseptr = NULL;
 static size_t buffer_size = 0;
 
 /**
+ * Data alignment is architecture-dependent
+ * and equals to pointer size
+ */
+static const size_t alignment = sizeof(void*);
+
+/**
  A struct which represents allocated memory buffers
  */
 typedef struct AllocatedMemoryNode {
@@ -56,13 +62,21 @@ static void print_byte(char value);
  */
 static char value_to_hex_character(char value);
 
+/**
+ * Align size for faster memory access
+ * Alignment is stored in @alignment global variable
+ * @param size Original size
+ * @return Architecture-dependent aligned size
+ */
+static size_t align_size(size_t size);
+
 void* mem_alloc(const size_t size) {
     if (!buffer_size) {
         if (!mem_init(default_buffer_size)) {
             return NULL;
         }
     }
-    const size_t real_size = size + node_size;
+    const size_t real_size = align_size(size) + node_size;
     const void* free_block_end = baseptr + buffer_size;
     AllocatedMemoryNode* prev_node = NULL;
     AllocatedMemoryNode* cur_node = head;
@@ -97,8 +111,8 @@ void* mem_realloc(void* old_addr, size_t new_size) {
         cur_node = cur_node->next;
     }
     const size_t block_size = (void*) prev_node - ((void*)cur_node + node_size);
-    if (block_size >= new_size) {
-        node->size = new_size;
+    if (block_size >= align_size(new_size)) {
+        node->size = align_size(new_size);
         return old_addr;
     }
 
@@ -184,4 +198,8 @@ static void print_byte(char value) {
 
 static char value_to_hex_character(char value) {
     return value + (value < 10 ? '0' : 'A');
+}
+
+static size_t align_size(size_t size) {
+    return size + ((alignment - size % alignment) % alignment);
 }
