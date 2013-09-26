@@ -6,11 +6,14 @@
 
 
 int main() {
-    char* ptr1 = mem_realloc(0, 0x10);
-    void* ptr2 = mem_alloc(0x10);
+    char* ptr1 = mem_alloc(0x10);
+    mem_free(ptr1);
+    void* ptr2 = mem_alloc(0x36);
     void* ptr3 = mem_alloc(0x10);
+    ptr3 = mem_realloc(ptr3, 0x38);
+    mem_free(ptr3);
     void* ptr4 = mem_alloc(0x10);
-    ptr2 = mem_realloc(ptr2, 0x10);
+    mem_free(ptr4);
 
     void* potr1 = malloc(0x10);
     void* potr2 = malloc(0x10);

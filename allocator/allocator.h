@@ -5,14 +5,15 @@
 #include <stdbool.h>
 
 /**
- *
+ * Allocate @size bytes of memory
  * @param size allocate @size bytes of memory
  * @return pointer to allocated memory
  */
 void* mem_alloc(size_t size);
 
 /**
- *
+ * Increase memory buffer pointed to by @addr to @new_size.
+ * Memory could be moved - new memory address is returned
  * @param addr pointer to memory asked to be resized
  * @param new_size new size of the allocated memory buffer
  * @return new pointer to memory
@@ -20,14 +21,14 @@ void* mem_alloc(size_t size);
 void* mem_realloc(void* addr, size_t new_size);
 
 /**
- *
+ * Free memory pointed by @addr
  * @param addr address which points to data buffer which should be freed
  */
 void mem_free(void* addr);
 
 /**
- *
- * @param addr Address of memory to be dumped
+ * Dump @size bytes of memory starting with byte pointed by @addr
+ * @param addr Address of start of memory to be dumped
  * @param size Number of bytes to be dumped
  */
 void mem_dump(const char* addr, const size_t size);
