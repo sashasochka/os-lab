@@ -35,13 +35,27 @@ typedef struct AllocatedMemoryNode {
      */
     struct AllocatedMemoryNode* next;
     /**
-     * Size of this buffer
+     * Pointer to next allocated buffer
+     */
+    struct AllocatedMemoryNode* prev;
+    /**
+     * Number of bytes allocated in heap for this buffer
      */
     size_t size;
 } AllocatedMemoryNode;
 
 static const size_t node_size = sizeof(AllocatedMemoryNode);
+
+/**
+ * Pointer to the head and tail nodes.
+ * Note: head always has the lowest address and tail has the highest!
+ * The structure is the following:
+ * (head) <-> (element) <-> ... <-> (element) <-> (tail)
+ * Head and tail are sentinel notes with 0 allocated memory and
+ * take additional overhead of 2 pointers for each (32 bytes on 64-bit machine)
+ */
 static AllocatedMemoryNode* head = NULL;
+static AllocatedMemoryNode* tail = NULL;
 
 
 /**
@@ -71,48 +85,38 @@ static char value_to_hex_character(char value);
 static size_t align_size(size_t size);
 
 void* mem_alloc(const size_t size) {
-    if (!buffer_size) {
+    if (buffer_size == 0) {
         if (!mem_init(default_buffer_size)) {
             return NULL;
         }
     }
     const size_t real_size = align_size(size) + node_size;
-    const void* free_block_end = baseptr + buffer_size;
-    AllocatedMemoryNode* prev_node = NULL;
-    AllocatedMemoryNode* cur_node = head;
-    while (cur_node) {
-        void* const free_block_start = (void*)cur_node + cur_node->size;
+
+    for (AllocatedMemoryNode* cur_node = head; cur_node != NULL;
+            cur_node = cur_node->next) {
+        void* free_block_start = (void*)cur_node + cur_node->size;
+        void* free_block_end = cur_node->next;
         const size_t block_size = free_block_end - free_block_start;
         if (block_size >= real_size) {
+            // Insert new_node between cur_node and cur_node->next
             AllocatedMemoryNode* const new_node = free_block_start;
-            new_node->next = cur_node;
+            new_node->prev = cur_node;
+            new_node->next = cur_node->next;
             new_node->size = real_size;
-            if (prev_node) {
-                prev_node->next = new_node;
-            } else {
-                head = new_node;
-            }
+            cur_node->next = new_node;
+            new_node->next->prev = new_node;
             return (void*)new_node + node_size;
         }
-        free_block_end = cur_node;
-        prev_node = cur_node;
-        cur_node = cur_node->next;
     }
     return NULL;
 }
 
 void* mem_realloc(void* old_addr, size_t new_size) {
-    if (old_addr == NULL) return mem_alloc(new_size);
+    if (old_addr == NULL || buffer_size == 0) return mem_alloc(new_size);
     AllocatedMemoryNode* node = old_addr - node_size;
-    AllocatedMemoryNode* prev_node = NULL;
-    AllocatedMemoryNode* cur_node = head;
-    while (cur_node != NULL && cur_node != node) {
-        prev_node = cur_node;
-        cur_node = cur_node->next;
-    }
-    const size_t block_size = (void*) prev_node - ((void*)cur_node + node_size);
+    const size_t block_size = (void*)node->next - old_addr;
     if (block_size >= align_size(new_size)) {
-        node->size = align_size(new_size);
+        node->size = align_size(new_size) + node_size;
         return old_addr;
     }
 
@@ -123,19 +127,10 @@ void* mem_realloc(void* old_addr, size_t new_size) {
 }
 
 void mem_free(void* addr) {
+    if (addr == NULL || buffer_size == 0) return;
     AllocatedMemoryNode* node = addr - node_size;
-    AllocatedMemoryNode* prev_node = NULL;
-    AllocatedMemoryNode* cur_node = head;
-    while (cur_node != NULL && cur_node != node) {
-        prev_node = cur_node;
-        cur_node = cur_node->next;
-    }
-    if (cur_node == NULL) return;
-    if (prev_node) {
-        prev_node->next = cur_node->next;
-    } else {
-        head = cur_node->next;
-    }
+    node->prev->next = node->next;
+    node->next->prev = node->prev;
 }
 
 void mem_dump(const char * addr, const size_t size) {
@@ -154,12 +149,20 @@ bool mem_init(const size_t size) {
     if (baseptr) mem_release();
     baseptr = malloc(size);
     if (baseptr != NULL) {
-        printf("Init with baseptr = %p\n", baseptr);
+        printf("Initialize with baseptr = %p\n", baseptr);
         buffer_size = size;
-        // make sentinel node
+
+        // setup head and tail sentinel nodes
         head = baseptr;
-        head->size = node_size;
-        head->next = NULL;
+        tail = baseptr + buffer_size - node_size;
+        head->size = tail->size = node_size;
+
+        head->prev = NULL;
+        head->next = tail;
+
+        tail->prev = head;
+        tail->next = NULL;
+
         return true;
     }
     return false;
@@ -170,6 +173,7 @@ static void mem_release() {
     baseptr = NULL;
     buffer_size = 0;
     head = NULL;
+    tail = NULL;
 }
 
 void mem_copy(void* to_void, const void* from_void, const size_t bytes) {
