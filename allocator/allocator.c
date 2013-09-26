@@ -30,13 +30,13 @@ static const size_t alignment = sizeof(void*);
  */
 typedef struct AllocatedMemoryNode {
     /**
-     * Pointer to next allocated buffer
-     */
-    struct AllocatedMemoryNode* next;
-    /**
-     * Pointer to next allocated buffer
+     * Pointer to the previous allocated buffer
      */
     struct AllocatedMemoryNode* prev;
+    /**
+     * Pointer to the next allocated buffer
+     */
+    struct AllocatedMemoryNode* next;
     /**
      * Number of bytes allocated in heap for this buffer
      */
@@ -63,13 +63,13 @@ static AllocatedMemoryNode* tail = NULL;
 static void mem_release();
 
 /**
- * Print @value in hex
+ * Print \a value in hex
  * @param value Value to be printed
  */
 static void print_byte(char value);
 
 /**
- * Convert @value from integer representation to hex character
+ * Convert \a value from integer representation to hex character
  * @param value
  * @return hex character representation
  */
@@ -77,7 +77,7 @@ static char value_to_hex_character(char value);
 
 /**
  * Align size for faster memory access
- * Alignment is stored in @alignment global variable
+ * Alignment is stored in \a alignment global variable
  * @param size Original size
  * @return Architecture-dependent aligned size
  */
