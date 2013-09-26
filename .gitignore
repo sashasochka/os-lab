@@ -4,6 +4,9 @@ Release
 dist
 build
 
+# Generated documentation
+doc
+
 # Compiled Object files
 *.slo
 *.lo
