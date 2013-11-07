@@ -26,3 +26,6 @@ doc
 *.inc
 *.d
 
+/slab-allocator/nbproject/private/
+/allocator/nbproject/private/
+
