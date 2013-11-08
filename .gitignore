@@ -25,6 +25,8 @@ doc
 # Other
 *.inc
 *.d
+*~
+*.swp
 
 */nbproject/private/
 
