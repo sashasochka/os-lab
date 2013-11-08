@@ -32,12 +32,12 @@ static void* create_multiblock_page(size_t block_size);
 void* alloc_pages(int pages_number);
 void* alloc_multiblock(size_t size);
 static void delete_block(MultiBlockPageHeader* page_header, void* addr);
-static size_t allign_size(size_t size);
+static size_t align_size(size_t size);
 static bool address_out_of_range(void* addr);
 bool should_use_multiblock(size_t size);
 
 // 0x20000000 = 0.5 GiB  0x64000 - 100 pages
-static const size_t buffer_size = 0x6400;
+static const size_t buffer_size = 0xa000;
 static const size_t page_size = 0x1000; // 4096 bytes
 static const size_t page_count = buffer_size / page_size;
 
@@ -54,7 +54,7 @@ void mem_init() {
 }
 
 void* mem_alloc(size_t size) {
-    size_t real_size = allign_size(size);
+    size_t real_size = align_size(size);
 
     if (!is_initialized_memory) {
         mem_init();
@@ -66,7 +66,7 @@ void* mem_alloc(size_t size) {
     if (should_use_multiblock(real_size)) {
         return alloc_multiblock(real_size);
     } else {
-        size_t pages_needed = (size_t) ceil((double)real_size / (double)page_size);
+        size_t pages_needed = (size_t) ceil((double)size / (double)page_size);
         return alloc_pages(pages_needed);
     }
 }
@@ -76,11 +76,10 @@ void* mem_realloc(void* addr, size_t size) {
         return NULL;
     }
 
-    size_t real_size = allign_size(size);
-    void* new_addr = mem_alloc(real_size);
+    void* new_addr = mem_alloc(size);
 
     if (new_addr) {
-        mem_copy(new_addr, addr, real_size);
+        mem_copy(new_addr, addr, size);
         mem_free(addr);
         return new_addr;
     } else {
@@ -242,7 +241,7 @@ void mem_dump() {
             }
 
             if (!is_divided) {
-                printf(": full (part of a multipage memory block)\n");
+                printf(": used (part of a multipage memory block)\n");
                 continue;
             }
 
@@ -270,7 +269,7 @@ void mem_dump() {
                     for (int block = 0; block <  blocks_count; ++block) {
                         printf("    block #%d (%lu-%lu): used\n", block_number,
                                 block_number * block_sz + sizeof(MultiBlockPageHeader),
-                                (block_number + 1) * block_sz);
+                                (block_number + 1) * block_sz + sizeof(MultiBlockPageHeader));
                         ++block_number;
                     }
                 } else {
@@ -280,7 +279,7 @@ void mem_dump() {
                 if (block_header->next_header != NULL) {
                     printf("    block #%d (%lu-%lu): free\n", block_number,
                             block_number * block_sz + sizeof(MultiBlockPageHeader),
-                            (block_number + 1) * block_sz);
+                            (block_number + 1) * block_sz + sizeof(MultiBlockPageHeader));
                 }
 
                 block_number++;
@@ -478,7 +477,7 @@ void delete_block(MultiBlockPageHeader* page_header, void* addr) {
     }
 }
 
-size_t allign_size(size_t size) {
+size_t align_size(size_t size) {
     return pow(2, ceil(log(size)/log(2)));
 }
 

@@ -14,7 +14,7 @@ int main() {
     mem_free(arr[0]);
     mem_free(arr[4]);
     mem_dump();
-    virtual_page = mem_realloc(virtual_page, 10000);
+    virtual_page = mem_realloc(virtual_page, 9000);
     arr[1] = mem_realloc(arr[1], 40);
     mem_dump();
     mem_free(virtual_page);
