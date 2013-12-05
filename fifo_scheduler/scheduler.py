@@ -34,7 +34,7 @@ for intensivity in [0.1]:
 
     time += 1
   # print('RESULT: avg waiting  = {}'.format(waiting_sum / tasks)) ## DEBUG
-  # pdoingrint() ## DEBUG
+  # print() ## DEBUG
   # print(waiting_sum / tasks) ## TASK 1: avg waiting time
   # print(1 - time_useful / time) ## TASK 2: idle time
 
