@@ -1,4 +1,5 @@
 import scala.annotation.tailrec
+import scala.collection.immutable.HashMap
 
 trait DFA[State, Symbol] {
   val startState: State
@@ -14,6 +15,13 @@ trait DFA[State, Symbol] {
     }
     case Nil => endStates contains state
   }
+}
+
+trait HashDFA[State, Symbol] extends DFA[State, Symbol] {
+  protected val stateMap: Map[(State, Symbol), State]
+
+  override def transition(state: State, symbol: Symbol) =
+    stateMap.get((state, symbol))
 }
 
 object EmailDFA extends DFA[EmailDFAState, EmailDFASymbol] {
@@ -47,6 +55,27 @@ object EmailDFA extends DFA[EmailDFAState, EmailDFASymbol] {
   }).toList
 }
 
+
+object EmailHashDFA extends HashDFA[EmailDFAState, EmailDFASymbol] {
+  override val startState = BeginState
+  override val endStates = List(BeginState, MidOrEndOfSubdomainState)
+  protected override val stateMap = HashMap(
+    (BeginState, WhitespaceSymbol) -> BeginState,
+    (BeginState, LetterOrDigitSymbol) -> MidOrEndOfNameState,
+    (BeginState, UnderlineSymbol) -> MidOrEndOfNameState,
+    (MidOrEndOfNameState, LetterOrDigitSymbol) -> MidOrEndOfNameState,
+    (MidOrEndOfNameState, UnderlineSymbol) -> MidOrEndOfNameState,
+    (MidOrEndOfNameState, AtSymbol) -> BeginOfSubdomainState,
+    (BeginOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState,
+    (MidOfSubdomainState, DashSymbol) -> MidOfSubdomainState,
+    (MidOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState,
+    (MidOrEndOfSubdomainState, DashSymbol) -> MidOfSubdomainState,
+    (MidOrEndOfSubdomainState, DotSymbol) -> BeginOfSubdomainState,
+    (MidOrEndOfSubdomainState, WhitespaceSymbol) -> BeginState,
+    (MidOrEndOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState
+  )
+}
+
 class EmailDFAState
 object BeginState extends EmailDFAState
 object MidOrEndOfNameState extends EmailDFAState
@@ -64,8 +93,8 @@ object UnderlineSymbol extends EmailDFASymbol
 object OtherSymbol extends EmailDFASymbol
 
 object Main extends App {
-  import EmailDFA._
+  import EmailDFA.toDFASymbols
   val text = io.Source.stdin.mkString
-  if (EmailDFA.matches(text)) println("Matches")
+  if (EmailHashDFA.matches(text)) println("Matches")
   else println("Doesn't match")
 }
