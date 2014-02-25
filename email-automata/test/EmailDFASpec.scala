@@ -1,9 +1,8 @@
 import org.scalatest.FlatSpec
-import EmailDFA._
+import EmailDFA.toDFASymbols
 
 class EmailDFASpec extends FlatSpec {
-  behavior of "toEmailDFASymbols"
-  it should "map empty string to Nil" in {
+  "toEmailDFASymbols implicit conversion method" should "map empty string to Nil" in {
     assert(EmailDFA.toDFASymbols("") == Nil)
   }
 

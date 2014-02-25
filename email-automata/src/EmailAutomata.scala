@@ -17,8 +17,8 @@ trait DFA[State, Symbol] {
 }
 
 object EmailDFA extends DFA[EmailDFAState, EmailDFASymbol] {
-  val startState = BeginState
-  val endStates = List(BeginState, MidOrEndOfSubdomainState)
+  override val startState = BeginState
+  override val endStates = List(BeginState, MidOrEndOfSubdomainState)
   def transition(state: EmailDFAState, symbol: EmailDFASymbol) = (state, symbol) match {
     case (BeginState, WhitespaceSymbol) => Some(BeginState)
     case (BeginState, LetterOrDigitSymbol) => Some(MidOrEndOfNameState)
