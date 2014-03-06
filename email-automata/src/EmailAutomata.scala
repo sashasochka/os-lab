@@ -1,100 +1,106 @@
-import scala.annotation.tailrec
-import scala.collection.immutable.HashMap
+object EmailDFA {
+  val startState: EmailDFAState = BeginState
+  val endStates: List[EmailDFAState] = List(BeginState, MidOrEndOfSubdomainState)
 
-trait DFA[State, Symbol] {
-  val startState: State
-  val endStates: List[State]
+  final def matches(string: String) =
+    matchStrings(string).isDefined
 
-  def transition(state: State, symbol: Symbol): Option[State]
-
-  @tailrec
-  final def matches(symbols: List[Symbol], state: State = startState): Boolean = symbols match {
-    case symbol :: other => transition(state, symbol) match {
-      case Some(newState) => matches(other, newState)
-      case None => false
+  final def matchStrings(string: String): Option[List[String]] = {
+    var state = startState
+    var strMatches: List[String] = Nil
+    for (c <- string) {
+      state.nextStateData(c, strMatches) match {
+        case Some((newState, matchLst)) =>
+          state = newState
+          strMatches = matchLst
+        case None => return None
+      }
     }
-    case Nil => endStates contains state
+    if (endStates contains state) Some(strMatches.reverse)
+    else None
   }
 }
 
-trait HashDFA[State, Symbol] extends DFA[State, Symbol] {
-  protected val stateMap: Map[(State, Symbol), State]
-
-  override def transition(state: State, symbol: Symbol) =
-    stateMap.get((state, symbol))
-}
-
-object EmailDFA extends DFA[EmailDFAState, EmailDFASymbol] {
-  override val startState = BeginState
-  override val endStates = List(BeginState, MidOrEndOfSubdomainState)
-  def transition(state: EmailDFAState, symbol: EmailDFASymbol) = (state, symbol) match {
-    case (BeginState, WhitespaceSymbol) => Some(BeginState)
-    case (BeginState, LetterOrDigitSymbol) => Some(MidOrEndOfNameState)
-    case (BeginState, UnderlineSymbol) => Some(MidOrEndOfNameState)
-    case (MidOrEndOfNameState, LetterOrDigitSymbol) => Some(MidOrEndOfNameState)
-    case (MidOrEndOfNameState, UnderlineSymbol) => Some(MidOrEndOfNameState)
-    case (MidOrEndOfNameState, AtSymbol) => Some(BeginOfSubdomainState)
-    case (BeginOfSubdomainState, LetterOrDigitSymbol) => Some(MidOrEndOfSubdomainState)
-    case (MidOfSubdomainState, DashSymbol) => Some(MidOfSubdomainState)
-    case (MidOfSubdomainState, LetterOrDigitSymbol) => Some(MidOrEndOfSubdomainState)
-    case (MidOrEndOfSubdomainState, DashSymbol) => Some(MidOfSubdomainState)
-    case (MidOrEndOfSubdomainState, DotSymbol) => Some(BeginOfSubdomainState)
-    case (MidOrEndOfSubdomainState, WhitespaceSymbol) => Some(BeginState)
-    case (MidOrEndOfSubdomainState, LetterOrDigitSymbol) => Some(MidOrEndOfSubdomainState)
-    case _ => None
-  }
-
-  implicit def toDFASymbols(str: String) = str.map({
+abstract sealed class EmailDFAState {
+  implicit def charToSymbol(char: Char) = char match {
     case c if c.isWhitespace => WhitespaceSymbol
     case c if c.isLetterOrDigit => LetterOrDigitSymbol
     case '@' => AtSymbol
     case '-' => DashSymbol
     case '.' => DotSymbol
     case '_' => UnderlineSymbol
-    case _ => OtherSymbol
-  }).toList
+    case c => OtherSymbol
+  }
+  final def startGroup(char: Char, matches: List[String]) = char.toString :: matches
+  final def addToLastGroup(char: Char, matches: List[String]) = (matches.head + char) :: matches.tail
+  def nextStateData(char: Char, matches: List[String]): Option[(EmailDFAState, List[String])]
 }
 
-
-object EmailHashDFA extends HashDFA[EmailDFAState, EmailDFASymbol] {
-  override val startState = BeginState
-  override val endStates = List(BeginState, MidOrEndOfSubdomainState)
-  protected override val stateMap = HashMap(
-    (BeginState, WhitespaceSymbol) -> BeginState,
-    (BeginState, LetterOrDigitSymbol) -> MidOrEndOfNameState,
-    (BeginState, UnderlineSymbol) -> MidOrEndOfNameState,
-    (MidOrEndOfNameState, LetterOrDigitSymbol) -> MidOrEndOfNameState,
-    (MidOrEndOfNameState, UnderlineSymbol) -> MidOrEndOfNameState,
-    (MidOrEndOfNameState, AtSymbol) -> BeginOfSubdomainState,
-    (BeginOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState,
-    (MidOfSubdomainState, DashSymbol) -> MidOfSubdomainState,
-    (MidOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState,
-    (MidOrEndOfSubdomainState, DashSymbol) -> MidOfSubdomainState,
-    (MidOrEndOfSubdomainState, DotSymbol) -> BeginOfSubdomainState,
-    (MidOrEndOfSubdomainState, WhitespaceSymbol) -> BeginState,
-    (MidOrEndOfSubdomainState, LetterOrDigitSymbol) -> MidOrEndOfSubdomainState
-  )
+case object BeginState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case WhitespaceSymbol => Some(BeginState, matches)
+    case LetterOrDigitSymbol => Some(MidOrEndOfNameState, startGroup(char, matches))
+    case UnderlineSymbol => Some(MidOrEndOfNameState, startGroup(char, matches))
+    case _ => None
+  }
 }
 
-class EmailDFAState
-object BeginState extends EmailDFAState
-object MidOrEndOfNameState extends EmailDFAState
-object BeginOfSubdomainState extends EmailDFAState
-object MidOfSubdomainState extends EmailDFAState
-object MidOrEndOfSubdomainState extends EmailDFAState
+case object MidOrEndOfNameState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case LetterOrDigitSymbol => Some(MidOrEndOfNameState, addToLastGroup(char, matches))
+    case UnderlineSymbol => Some(MidOrEndOfNameState, addToLastGroup(char, matches))
+    case AtSymbol => Some(BeginOfDomainState, matches)
+    case _ => None
+  }
+}
 
-class EmailDFASymbol
-object WhitespaceSymbol extends EmailDFASymbol
-object LetterOrDigitSymbol extends EmailDFASymbol
-object AtSymbol extends EmailDFASymbol
-object DashSymbol extends EmailDFASymbol
-object DotSymbol extends EmailDFASymbol
-object UnderlineSymbol extends EmailDFASymbol
-object OtherSymbol extends EmailDFASymbol
+case object BeginOfDomainState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case LetterOrDigitSymbol => Some(MidOrEndOfSubdomainState, startGroup(char, matches))
+    case _ => None
+  }
+}
+
+case object BeginOfSubdomainState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case LetterOrDigitSymbol => Some(MidOrEndOfSubdomainState, addToLastGroup(char, matches))
+    case _ => None
+  }
+}
+
+case object MidOfSubdomainState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case DashSymbol => Some(MidOfSubdomainState, addToLastGroup(char, matches))
+    case LetterOrDigitSymbol => Some(MidOrEndOfSubdomainState, addToLastGroup(char, matches))
+    case _ => None
+  }
+}
+
+case object MidOrEndOfSubdomainState extends EmailDFAState {
+  override def nextStateData(char: Char, matches: List[String]) = charToSymbol(char) match {
+    case DashSymbol => Some(MidOfSubdomainState, addToLastGroup(char, matches))
+    case DotSymbol => Some(BeginOfSubdomainState, addToLastGroup(char, matches))
+    case WhitespaceSymbol => Some(BeginState, matches)
+    case LetterOrDigitSymbol => Some(MidOrEndOfSubdomainState, addToLastGroup(char, matches))
+    case _ => None
+  }
+}
+
+sealed class EmailDFASymbol
+case object AtSymbol extends EmailDFASymbol
+case object DashSymbol extends EmailDFASymbol
+case object DotSymbol extends EmailDFASymbol
+case object UnderlineSymbol extends EmailDFASymbol
+case object WhitespaceSymbol extends EmailDFASymbol
+case object LetterOrDigitSymbol extends EmailDFASymbol
+case object OtherSymbol extends EmailDFASymbol
 
 object Main extends App {
-  import EmailDFA.toDFASymbols
   val text = io.Source.stdin.mkString
-  if (EmailHashDFA.matches(text)) println("Matches")
-  else println("Doesn't match")
+  EmailDFA.matchStrings(text) match {
+    case Some(lst) =>
+      println("Your string matches! Captured strings: ")
+      lst map println
+    case None => println("Doesn't match")
+  }
 }
