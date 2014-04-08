@@ -1,7 +1,7 @@
 package object dfa {
   type Matches = List[String]
   type Action = ((Char, Matches) => Matches)
-  type Transition = Map[Symbol, (EmailDFAState, Action)]
+  type Transition = PartialFunction[Symbol, (EmailDFAState, Action)]
 
   class Symbol
   val AtSymbol

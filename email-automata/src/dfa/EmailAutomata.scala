@@ -38,7 +38,7 @@ abstract sealed class EmailDFAState {
   }
 
   final def nextStateOption(c: Char) =
-    transition get c
+    transition lift c
 
   val transition: Transition
 }
